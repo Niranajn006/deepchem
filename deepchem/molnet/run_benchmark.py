@@ -14,7 +14,6 @@ import numpy as np
 import tensorflow as tf
 import deepchem
 import pickle
-import json
 from deepchem.molnet.run_benchmark_models import benchmark_classification, benchmark_regression
 from deepchem.molnet.check_availability import CheckFeaturizer, CheckSplit
 from deepchem.molnet.preset_hyper_parameters import hps
@@ -240,6 +239,8 @@ def run_benchmark(ckpt,
         pickle.dump(hyper_parameters, f)
 
     # Logging Experiment Result
+    from os.path import join, isfile
+    import json
     ckpt_model = '_'.join(ckpt.split('_')[:-2])
     benchmark_data = {'ckpt': ckpt, 'task': dataset, 'model':model_name,
                       'train_score':train_score[model_name][i],
@@ -249,7 +250,6 @@ def run_benchmark(ckpt,
     result_filename = '{}.json'.format(ckpt_model)
     exp_name = '{}_{}_{}'.format(ckpt, dataset, model)
 
-    from os.path import join, isfile
     list_files = [f for f in os.listdir(out_path) if isfile(join(out_path, f))]
 
     if result_filename in list_files:
