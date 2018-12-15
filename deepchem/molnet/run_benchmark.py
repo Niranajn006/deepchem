@@ -14,12 +14,15 @@ import numpy as np
 import tensorflow as tf
 import deepchem
 import pickle
+import json
 from deepchem.molnet.run_benchmark_models import benchmark_classification, benchmark_regression
 from deepchem.molnet.check_availability import CheckFeaturizer, CheckSplit
 from deepchem.molnet.preset_hyper_parameters import hps
 
 
-def run_benchmark(datasets,
+def run_benchmark(ckpt,
+                  arg,
+                  datasets,
                   model,
                   split=None,
                   metric=None,
@@ -33,7 +36,8 @@ def run_benchmark(datasets,
                   search_range=2,
                   test=False,
                   reload=True,
-                  seed=123):
+                  seed=123
+                  ):
   """
   Run benchmark test on designated datasets with deepchem(or user-defined) model
 
@@ -42,8 +46,7 @@ def run_benchmark(datasets,
   datasets: list of string
       choice of which datasets to use, should be: bace_c, bace_r, bbbp, chembl,
       clearance, clintox, delaney, hiv, hopv, kaggle, lipo, muv, nci, pcba,
-      pdbbind, ppb, qm7, qm7b, qm8, qm9, sampl, sider, tox21, toxcast, uv, factors,
-      kinase
+      pdbbind, ppb, qm7, qm7b, qm8, qm9, sampl, sider, tox21, toxcast
   model: string or user-defined model stucture
       choice of which model to use, deepchem provides implementation of
       logistic regression, random forest, multitask network,
@@ -78,6 +81,8 @@ def run_benchmark(datasets,
   reload: boolean, optional(default=True)
       whether to save and reload featurized datasets
   """
+
+  benchmark_data = {}
   for dataset in datasets:
     if dataset in [
         'bace_c', 'bbbp', 'clintox', 'hiv', 'muv', 'pcba', 'pcba_146',
@@ -120,11 +125,9 @@ def run_benchmark(datasets,
         'clearance': deepchem.molnet.load_clearance,
         'clintox': deepchem.molnet.load_clintox,
         'delaney': deepchem.molnet.load_delaney,
-        'factors': deepchem.molnet.load_factors,
         'hiv': deepchem.molnet.load_hiv,
         'hopv': deepchem.molnet.load_hopv,
         'kaggle': deepchem.molnet.load_kaggle,
-        'kinase': deepchem.molnet.load_kinase,
         'lipo': deepchem.molnet.load_lipo,
         'muv': deepchem.molnet.load_muv,
         'nci': deepchem.molnet.load_nci,
@@ -140,8 +143,7 @@ def run_benchmark(datasets,
         'sampl': deepchem.molnet.load_sampl,
         'sider': deepchem.molnet.load_sider,
         'tox21': deepchem.molnet.load_tox21,
-        'toxcast': deepchem.molnet.load_toxcast,
-        'uv': deepchem.molnet.load_uv,
+        'toxcast': deepchem.molnet.load_toxcast
     }
 
     print('-------------------------------------')
@@ -222,11 +224,12 @@ def run_benchmark(datasets,
       writer = csv.writer(f)
       model_name = list(train_score.keys())[0]
       for i in train_score[model_name]:
-        output_line = [
+        output_line = [str(dataset),'_',str(model),'_',str(featurizer),'/n']
+        output_line.extend([
             dataset,
             str(split), mode, model_name, i, 'train',
             train_score[model_name][i], 'valid', valid_score[model_name][i]
-        ]
+        ])
         if test:
           output_line.extend(['test', test_score[model_name][i]])
         output_line.extend(
@@ -235,6 +238,32 @@ def run_benchmark(datasets,
     if hyper_param_search:
       with open(os.path.join(out_path, dataset + model + '.pkl'), 'w') as f:
         pickle.dump(hyper_parameters, f)
+
+    # Logging Experiment Result
+    ckpt_model = '_'.join(ckpt.split('_')[:-2])
+    benchmark_data = {'ckpt': ckpt, 'task': dataset, 'model':model_name,
+                      'train_score':train_score[model_name][i],
+                      'val_score':valid_score[model_name][i],
+                      'test_score':test_score[model_name][i]}
+    benchmark_data.update(arg)
+    result_filename = '{}.json'.format(ckpt_model)
+    exp_name = '{}_{}_{}'.format(ckpt, dataset, model)
+
+    from os.path import join, isfile
+    list_files = [f for f in os.listdir(out_path) if isfile(join(out_path, f))]
+
+    if result_filename in list_files:
+        with open(os.path.join(out_path, result_filename), 'r+') as outfile:
+            temp = json.load(outfile)
+            temp.update({exp_name: benchmark_data})
+            outfile.seek(0)
+            json.dump(temp, outfile)
+            outfile.truncate()
+    else:
+        with open(os.path.join(out_path, result_filename), 'w+') as outfile:
+            temp = {exp_name: benchmark_data}
+            json.dump(temp, outfile)
+    print('Result Saved at {}'.format(os.path.join(out_path, result_filename)))
 
 
 #
@@ -253,9 +282,8 @@ def load_dataset(dataset, featurizer, split='random'):
   ----------
   dataset: string
       choice of which datasets to use, should be: tox21, muv, sider,
-      toxcast, pcba, delaney, factors, hiv, hopv, kaggle, kinase, nci,
-      clintox, hiv, pcba_128, pcba_146, pdbbind, chembl, qm7, qm7b, qm9,
-      sampl, uv
+      toxcast, pcba, delaney, kaggle, nci, clintox, hiv, pcba_128, pcba_146, pdbbind, chembl,
+      qm7, qm7b, qm9, sampl
   featurizer: string or dc.feat.Featurizer.
       choice of featurization.
   split: string,  optional (default=None)
@@ -269,11 +297,9 @@ def load_dataset(dataset, featurizer, split='random'):
       'clearance': deepchem.molnet.load_clearance,
       'clintox': deepchem.molnet.load_clintox,
       'delaney': deepchem.molnet.load_delaney,
-      'factors': deepchem.molnet.load_factors,
       'hiv': deepchem.molnet.load_hiv,
       'hopv': deepchem.molnet.load_hopv,
       'kaggle': deepchem.molnet.load_kaggle,
-      'kinase': deepchem.molnet.load_kinase,
       'lipo': deepchem.molnet.load_lipo,
       'muv': deepchem.molnet.load_muv,
       'nci': deepchem.molnet.load_nci,
@@ -290,8 +316,7 @@ def load_dataset(dataset, featurizer, split='random'):
       'sampl': deepchem.molnet.load_sampl,
       'sider': deepchem.molnet.load_sider,
       'tox21': deepchem.molnet.load_tox21,
-      'toxcast': deepchem.molnet.load_toxcast,
-      'uv': deepchem.molnet.load_uv
+      'toxcast': deepchem.molnet.load_toxcast
   }
   print('-------------------------------------')
   print('Loading dataset: %s' % dataset)
