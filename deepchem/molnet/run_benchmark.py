@@ -248,6 +248,11 @@ def run_benchmark(ckpt,
     if 'Comet' in str(featurizer.__class__.__qualname__):
         print('in comet')
         ckpt_model = '{}_{}'.format('_'.join(ckpt.split('_')[:-2]), n_features)
+    elif 'RandFeat' in str(featurizer.__class__.__qualname__):
+        print('in rand')
+        ckpt_model = '{}_{}'.format('Rand', n_features)
+        ckpt = 'rand'
+
     else:
         print('not comet')
         if ckpt is 'fingerprint':
