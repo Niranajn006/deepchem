@@ -14,6 +14,7 @@ import numpy as np
 import tensorflow as tf
 import deepchem
 import pickle
+import json
 from deepchem.molnet.run_benchmark_models import benchmark_classification, benchmark_regression
 from deepchem.molnet.check_availability import CheckFeaturizer, CheckSplit
 from deepchem.molnet.preset_hyper_parameters import hps
@@ -239,17 +240,30 @@ def run_benchmark(ckpt,
         pickle.dump(hyper_parameters, f)
 
     # Logging Experiment Result
-    from os.path import join, isfile
-    import json
-    ckpt_model = '_'.join(ckpt.split('_')[:-2])
-    benchmark_data = {'ckpt': ckpt, 'task': dataset, 'model':model_name,
+
+    benchmark_data = {}
+    print('#########################')
+    print(featurizer.__class__.__qualname__)
+    print('##########################')
+    if 'Comet' in str(featurizer.__class__.__qualname__):
+        print('in comet')
+        ckpt_model = '{}_{}'.format('_'.join(ckpt.split('_')[:-2]), n_features)
+    else:
+        print('not comet')
+        if ckpt is 'fingerprint':
+            ckpt_model = '{}_{}'.format(ckpt, n_features)
+            benchmark_data.update(hyper_parameters)
+
+    benchmark_data = {'ckpt': '{}_{}'.format(ckpt_model, model), 'task': dataset, 'model':model_name,
                       'train_score':train_score[model_name][i],
                       'val_score':valid_score[model_name][i],
                       'test_score':test_score[model_name][i]}
+
     benchmark_data.update(arg)
     result_filename = '{}.json'.format(ckpt_model)
     exp_name = '{}_{}_{}'.format(ckpt, dataset, model)
 
+    from os.path import join, isfile
     list_files = [f for f in os.listdir(out_path) if isfile(join(out_path, f))]
 
     if result_filename in list_files:
